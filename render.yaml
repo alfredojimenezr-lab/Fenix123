@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: fenix-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: PHONE_NUMBER_ID
+        sync: false
+      - key: EMAIL_REMITENTE
+        sync: false
+      - key: EMAIL_DESTINO
+        value: alfredo.jimenez@tengounafuga.cl
+      - key: EMAIL_PASSWORD_APP
+        sync: false
