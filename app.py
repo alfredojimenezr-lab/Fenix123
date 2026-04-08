@@ -29,7 +29,7 @@ def receive_message():
     try:
         value = data["entry"][0]["changes"][0]["value"]
 
-        # Ignora estados como sent, delivered, read
+        # Ignora eventos de estado: sent, delivered, read
         if "messages" not in value:
             return "ok", 200
 
@@ -111,9 +111,15 @@ def handle_message(user, text):
                 return "¿En qué *comuna* se encuentra? Responde: *Iquique* o *Alto Hospicio*."
 
             if "depart" in text or "depto" in text or "condominio" in text or "industria" in text:
-                session["tipo"] = "departamento"
+                session["tipo"] = "no_casa"
                 session["step"] = "contacto_nombre"
-                return "Para departamentos, condominios o industrias realizamos *visita técnica*.\n\nIndícame tu *nombre*."
+                return (
+                    "🏢 *Evaluación técnica en terreno*\n\n"
+                    "En casos de *departamentos, condominios e industrias*, realizamos una *visita técnica sin costo*, ya que las alternativas de detección y localización dependen del sistema interno del edificio, cámaras de alcantarillado, montantes, shafts, bajantes y condiciones estructurales.\n\n"
+                    "Coordinemos una *visita técnica gratuita* para evaluar las alternativas de localización y reparación.\n\n"
+                    "Luego de la inspección generamos la *cotización oficial* con alcances del servicio, condiciones de pago y garantías.\n\n"
+                    "Indícame tu *nombre*."
+                )
 
             return "Por favor responde si es *casa* o *departamento*."
 
@@ -271,7 +277,8 @@ def calcular_cotizacion(s):
         "\n\n"
         f"Nombre: {s['nombre']}\n"
         f"Teléfono: {s['telefono']}\n\n"
-        "¿Deseas agendar visita?"
+        "Indícanos si estás de acuerdo para generar la *cotización oficial* con los alcances del servicio, condiciones de pago, garantías y agendar el inicio del servicio.\n"
+        "Contamos con todos los medios de pago disponibles."
     )
 
     return respuesta
