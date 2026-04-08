@@ -29,6 +29,7 @@ def receive_message():
     try:
         value = data["entry"][0]["changes"][0]["value"]
 
+        # Ignora estados como sent, delivered, read
         if "messages" not in value:
             return "ok", 200
 
@@ -56,10 +57,12 @@ def handle_message(user, text):
 
     session = sessions[user]
 
+    # Reinicio manual
     if text in ["menu", "menú", "inicio", "hola", "reiniciar"]:
         sessions[user] = {"step": "menu"}
         return menu()
 
+    # ================= MENU =================
     if session["step"] == "menu":
         if text == "1" or "filtr" in text or "fuga" in text:
             session["service"] = "filtracion"
@@ -98,6 +101,7 @@ def handle_message(user, text):
 
         return menu()
 
+    # ================= FILTRACIÓN =================
     if session.get("service") == "filtracion":
 
         if session["step"] == "tipo_propiedad":
@@ -169,6 +173,7 @@ def handle_message(user, text):
             session["step"] = "fin"
             return calcular_cotizacion(session)
 
+    # ================= CONTACTO GENERAL =================
     if session["step"] == "contacto_nombre":
         session["nombre"] = text.title()
         session["step"] = "contacto_telefono"
@@ -226,58 +231,50 @@ def calcular_cotizacion(s):
     if "hospicio" in comuna:
         base += 40000
 
-    # Factor base según superficie
+    # Escala base por superficie
     if m2 <= 100:
         factor = 1.0
-        tramo = "Casa hasta 100 m²"
+    elif m2 <= 150:
+        factor = 1.0
     elif m2 <= 200:
-        factor = 1.5
-        tramo = "Casa sobre 100 m² y hasta 200 m²"
+        factor = 1.3
     elif m2 <= 300:
         factor = 2.0
-        tramo = "Casa sobre 200 m² y hasta 300 m²"
     else:
         factor = 2.5
-        tramo = "Casa sobre 300 m²"
-
-    detalle_factor = [f"Factor base: x{factor:.1f} ({tramo})"]
 
     # +0.1 por cada baño adicional
     if banos > 1:
-        incremento_banos = (banos - 1) * 0.1
-        factor += incremento_banos
-        detalle_factor.append(f"+{incremento_banos:.1f} por {banos - 1} baño(s) adicional(es)")
+        factor += (banos - 1) * 0.1
 
-    # +0.2 si hay ampliaciones
+    # +0.2 por ampliaciones
     if ampliacion:
         factor += 0.2
-        detalle_factor.append("+0.2 por ampliaciones")
 
-    precio = int(base * factor)
+    precio_servicio = int(base * factor)
 
-    # +60000 informe para seguro
+    total = precio_servicio
     if seguro:
-        precio += 60000
-        detalle_factor.append("+60.000 por informe para seguro")
+        total += 60000
 
-    detalle_texto = "\n".join(detalle_factor)
-
-    return (
+    respuesta = (
         "💧 *Cotización estimada*\n\n"
-        f"💰 CLP {precio:,}".replace(",", ".") +
-        "\n\nDetalle:\n"
-        f"{detalle_texto}\n"
-        f"Factor total aplicado: x{factor:.1f}\n"
-        f"Superficie: {m2} m²\n"
-        f"Baños: {banos}\n"
-        f"Ampliaciones: {'Sí' if ampliacion else 'No'}\n"
-        f"Comuna: {s['comuna'].title()}\n"
-        f"Informe para seguro: {'Sí' if seguro else 'No'}\n\n"
+        f"💰 Servicio: CLP {precio_servicio:,}".replace(",", ".") +
+        "\n"
+    )
+
+    if seguro:
+        respuesta += "📄 Informe para seguro: CLP 60.000\n"
+        respuesta += f"\n💵 Total: CLP {total:,}".replace(",", ".")
+
+    respuesta += (
+        "\n\n"
         f"Nombre: {s['nombre']}\n"
-        f"Teléfono: {s['telefono']}\n"
-        f"Correo: {s['correo']}\n\n"
+        f"Teléfono: {s['telefono']}\n\n"
         "¿Deseas agendar visita?"
     )
+
+    return respuesta
 
 
 # =========================
