@@ -1,4 +1,6 @@
 from flask import Flask, request
+import requests
+import os
 
 app = Flask(__name__)
 
@@ -25,4 +27,35 @@ def verify():
 def receive_message():
     data = request.get_json(silent=True)
     print("Mensaje recibido:", data)
+
+    try:
+        message = data["entry"][0]["changes"][0]["value"]["messages"][0]
+        from_number = message["from"]
+
+        send_whatsapp_message(from_number, "Hola 👋 soy Fenix Bot. ¿En qué puedo ayudarte?")
+
+    except Exception as e:
+        print("Error:", e)
+
     return "EVENT_RECEIVED", 200
+
+
+def send_whatsapp_message(to, text):
+    url = f"https://graph.facebook.com/v18.0/{os.environ.get('PHONE_NUMBER_ID')}/messages"
+
+    headers = {
+        "Authorization": f"Bearer {os.environ.get('WHATSAPP_TOKEN')}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {
+            "body": text
+        }
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    print("Respuesta enviada:", response.text)
