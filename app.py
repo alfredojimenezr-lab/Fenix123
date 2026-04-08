@@ -24,7 +24,7 @@ def verify():
 @app.route("/webhook", methods=["POST"])
 def receive_message():
     data = request.get_json(silent=True)
-    print("Mensaje:", data)
+    print("Mensaje recibido:", data)
 
     try:
         value = data["entry"][0]["changes"][0]["value"]
@@ -34,10 +34,11 @@ def receive_message():
 
         msg = value["messages"][0]
         user = msg["from"]
-        text = msg.get("text", {}).get("body", "").lower()
+        text = msg.get("text", {}).get("body", "").strip().lower()
 
         response = handle_message(user, text)
-        send_message(user, response)
+        if response:
+            send_message(user, response)
 
     except Exception as e:
         print("Error:", e)
@@ -50,137 +51,141 @@ def receive_message():
 # =========================
 
 def handle_message(user, text):
-
     if user not in sessions:
         sessions[user] = {"step": "menu"}
 
     session = sessions[user]
 
-    # RESET
-    if text in ["menu", "inicio", "hola"]:
-        session["step"] = "menu"
+    if text in ["menu", "menú", "inicio", "hola", "reiniciar"]:
+        sessions[user] = {"step": "menu"}
         return menu()
 
-    # ================= MENU =================
     if session["step"] == "menu":
-
-        if "1" in text or "filtr" in text:
+        if text == "1" or "filtr" in text or "fuga" in text:
             session["service"] = "filtracion"
             session["step"] = "tipo_propiedad"
-            return "Perfecto 👍\n\n¿Es casa o departamento?"
+            return "Perfecto 👍\n\n¿Es *casa* o *departamento*?"
 
-        if "2" in text:
-            session["step"] = "contacto"
-            return "Para alcantarillado necesitamos evaluación técnica.\n\nIndícame tu nombre."
+        if text == "2" or "alcantarill" in text or "olor" in text:
+            session["service"] = "alcantarillado"
+            session["step"] = "contacto_nombre"
+            return "Para alcantarillado u olores se requiere evaluación técnica.\n\nIndícame tu *nombre*."
 
-        if "3" in text:
-            session["step"] = "contacto"
-            return "Para piscinas realizamos diagnóstico.\n\nIndícame tu nombre."
+        if text == "3" or "piscina" in text:
+            session["service"] = "piscina"
+            session["step"] = "contacto_nombre"
+            return "Para piscinas primero realizamos diagnóstico técnico.\n\nIndícame tu *nombre*."
 
-        if "4" in text:
-            session["step"] = "contacto"
-            return "Indícame tu nombre para inspección técnica."
+        if text == "4" or "inspeccion" in text or "inspección" in text:
+            session["service"] = "inspeccion"
+            session["step"] = "contacto_nombre"
+            return "Perfecto. Indícame tu *nombre* para coordinar la inspección técnica."
 
-        if "5" in text:
-            session["step"] = "contacto"
-            return "Indícame tu nombre para informe técnico."
+        if text == "5" or "seguro" in text or "informe" in text:
+            session["service"] = "seguro"
+            session["step"] = "contacto_nombre"
+            return "Perfecto. Indícame tu *nombre* para preparar el informe técnico."
 
-        if "6" in text:
-            session["step"] = "contacto"
-            return "Indícame tu nombre para auditoría."
+        if text == "6" or "auditoria" in text or "auditoría" in text:
+            session["service"] = "auditoria"
+            session["step"] = "contacto_nombre"
+            return "Perfecto. Indícame tu *nombre* para coordinar la auditoría."
 
-        if "7" in text:
-            session["step"] = "contacto"
-            return "Cuéntame tu nombre y el problema."
+        if text == "7" or "otro" in text:
+            session["service"] = "otro"
+            session["step"] = "contacto_nombre"
+            return "Cuéntame tu *nombre* y luego te derivamos con un ejecutivo."
 
         return menu()
 
-    # ================= FILTRACIÓN =================
     if session.get("service") == "filtracion":
 
         if session["step"] == "tipo_propiedad":
-
             if "casa" in text:
                 session["tipo"] = "casa"
                 session["step"] = "comuna"
-                return "¿En qué comuna? (Iquique / Alto Hospicio)"
+                return "¿En qué *comuna* se encuentra? Responde: *Iquique* o *Alto Hospicio*."
 
-            else:
-                session["step"] = "contacto"
-                return "Para departamentos o industrias realizamos visita técnica.\n\nIndícame tu nombre."
+            if "depart" in text or "depto" in text or "condominio" in text or "industria" in text:
+                session["tipo"] = "departamento"
+                session["step"] = "contacto_nombre"
+                return "Para departamentos, condominios o industrias realizamos *visita técnica*.\n\nIndícame tu *nombre*."
+
+            return "Por favor responde si es *casa* o *departamento*."
 
         if session["step"] == "comuna":
-
             session["comuna"] = text
             session["step"] = "m2"
-            return "¿Cuántos m² aprox?"
+            return "¿Cuántos *m² aproximados* tiene la propiedad? Responde solo con el número."
 
         if session["step"] == "m2":
-
             try:
-                session["m2"] = int(''.join(filter(str.isdigit, text)))
+                session["m2"] = int("".join(filter(str.isdigit, text)))
             except:
-                return "Indica solo el número de m²."
-
+                return "Indica solo el número de *m²*."
             session["step"] = "banos"
-            return "¿Cuántos baños?"
+            return "¿Cuántos *baños* tiene la propiedad? Responde solo con el número."
 
         if session["step"] == "banos":
-
             try:
-                session["banos"] = int(''.join(filter(str.isdigit, text)))
+                session["banos"] = int("".join(filter(str.isdigit, text)))
             except:
-                return "Indica número de baños."
-
+                return "Indica solo el número de *baños*."
             session["step"] = "ampliacion"
-            return "¿Tiene ampliaciones? (sí/no)"
+            return "¿La propiedad tiene *ampliaciones*? Responde *sí* o *no*."
 
         if session["step"] == "ampliacion":
-
-            session["ampliacion"] = "si" in text
+            if text in ["sí", "si", "s"]:
+                session["ampliacion"] = True
+            elif text in ["no", "n"]:
+                session["ampliacion"] = False
+            else:
+                return "Por favor responde *sí* o *no*."
             session["step"] = "seguro"
-            return "¿Requiere informe para seguro? (sí/no)"
+            return "¿Requiere *informe para seguro*? Responde *sí* o *no*."
 
         if session["step"] == "seguro":
-
-            session["seguro"] = "si" in text
+            if text in ["sí", "si", "s"]:
+                session["seguro"] = True
+            elif text in ["no", "n"]:
+                session["seguro"] = False
+            else:
+                return "Por favor responde *sí* o *no*."
             session["step"] = "nombre"
-            return "Indícame tu nombre."
+            return "Perfecto. Indícame tu *nombre*."
 
         if session["step"] == "nombre":
-
-            session["nombre"] = text
+            session["nombre"] = text.title()
             session["step"] = "telefono"
-            return "Tu teléfono de contacto."
+            return "Indícame tu *teléfono de contacto*."
 
         if session["step"] == "telefono":
-
             session["telefono"] = text
             session["step"] = "correo"
-            return "Tu correo electrónico."
+            return "Indícame tu *correo electrónico*."
 
         if session["step"] == "correo":
-
             session["correo"] = text
             session["step"] = "fin"
-
             return calcular_cotizacion(session)
 
-    # ================= CONTACTO GENERAL =================
-    if session["step"] == "contacto":
+    if session["step"] == "contacto_nombre":
+        session["nombre"] = text.title()
+        session["step"] = "contacto_telefono"
+        return "Indícame tu *teléfono*."
 
-        session["nombre"] = text
-        session["step"] = "telefono"
-        return "Indícame tu teléfono."
-
-    if session["step"] == "telefono":
-
+    if session["step"] == "contacto_telefono":
         session["telefono"] = text
         session["step"] = "fin"
-        return "Gracias 👍 Un ejecutivo te contactará."
+        return (
+            "Gracias 👍\n\n"
+            f"Nombre: {session.get('nombre')}\n"
+            f"Teléfono: {session.get('telefono')}\n\n"
+            "Tu solicitud fue registrada. Un ejecutivo te contactará."
+        )
 
     if session["step"] == "fin":
-        return "Tu solicitud ya fue registrada."
+        return "Tu solicitud ya fue registrada. Si deseas comenzar de nuevo, escribe *inicio*."
 
     return menu()
 
@@ -192,15 +197,15 @@ def handle_message(user, text):
 def menu():
     return (
         "Hola 👋 Soy *FÉNIX – Detección de Fugas*\n\n"
-        "Servicios:\n"
+        "Servicios disponibles:\n"
         "1️⃣ Filtración agua potable\n"
-        "2️⃣ Alcantarillado\n"
+        "2️⃣ Alcantarillado / olores\n"
         "3️⃣ Piscinas\n"
         "4️⃣ Inspección técnica\n"
         "5️⃣ Informe para seguros\n"
         "6️⃣ Auditoría técnica\n"
         "7️⃣ Otro\n\n"
-        "Responde con el número."
+        "Responde con el *número* de la opción o escribe tu problema."
     )
 
 
@@ -209,29 +214,69 @@ def menu():
 # =========================
 
 def calcular_cotizacion(s):
+    base = 270000
 
-    if s["m2"] > 80 or s["banos"] > 1 or s["ampliacion"]:
-        return (
-            "Este caso requiere visita técnica.\n\n"
-            f"Nombre: {s['nombre']}\n"
-            f"Teléfono: {s['telefono']}\n"
-            "Te contactaremos."
-        )
+    comuna = s.get("comuna", "").lower()
+    m2 = s.get("m2", 0)
+    banos = s.get("banos", 1)
+    ampliacion = s.get("ampliacion", False)
+    seguro = s.get("seguro", False)
 
-    precio = 270000
+    # Base según comuna
+    if "hospicio" in comuna:
+        base += 40000
 
-    if "hospicio" in s["comuna"]:
-        precio += 40000
+    # Factor base según superficie
+    if m2 <= 100:
+        factor = 1.0
+        tramo = "Casa hasta 100 m²"
+    elif m2 <= 200:
+        factor = 1.5
+        tramo = "Casa sobre 100 m² y hasta 200 m²"
+    elif m2 <= 300:
+        factor = 2.0
+        tramo = "Casa sobre 200 m² y hasta 300 m²"
+    else:
+        factor = 2.5
+        tramo = "Casa sobre 300 m²"
 
-    if s["seguro"]:
+    detalle_factor = [f"Factor base: x{factor:.1f} ({tramo})"]
+
+    # +0.1 por cada baño adicional
+    if banos > 1:
+        incremento_banos = (banos - 1) * 0.1
+        factor += incremento_banos
+        detalle_factor.append(f"+{incremento_banos:.1f} por {banos - 1} baño(s) adicional(es)")
+
+    # +0.2 si hay ampliaciones
+    if ampliacion:
+        factor += 0.2
+        detalle_factor.append("+0.2 por ampliaciones")
+
+    precio = int(base * factor)
+
+    # +60000 informe para seguro
+    if seguro:
         precio += 60000
+        detalle_factor.append("+60.000 por informe para seguro")
+
+    detalle_texto = "\n".join(detalle_factor)
 
     return (
-        "💧 Cotización estimada:\n\n"
+        "💧 *Cotización estimada*\n\n"
         f"💰 CLP {precio:,}".replace(",", ".") +
-        "\n\nIncluye detección de filtración.\n"
+        "\n\nDetalle:\n"
+        f"{detalle_texto}\n"
+        f"Factor total aplicado: x{factor:.1f}\n"
+        f"Superficie: {m2} m²\n"
+        f"Baños: {banos}\n"
+        f"Ampliaciones: {'Sí' if ampliacion else 'No'}\n"
+        f"Comuna: {s['comuna'].title()}\n"
+        f"Informe para seguro: {'Sí' if seguro else 'No'}\n\n"
         f"Nombre: {s['nombre']}\n"
-        f"Teléfono: {s['telefono']}"
+        f"Teléfono: {s['telefono']}\n"
+        f"Correo: {s['correo']}\n\n"
+        "¿Deseas agendar visita?"
     )
 
 
@@ -240,7 +285,6 @@ def calcular_cotizacion(s):
 # =========================
 
 def send_message(to, text):
-
     url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
 
     headers = {
@@ -255,4 +299,9 @@ def send_message(to, text):
         "text": {"body": text}
     }
 
-    requests.post(url, json=payload, headers=headers)
+    response = requests.post(url, json=payload, headers=headers)
+    print("Respuesta enviada:", response.text)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
