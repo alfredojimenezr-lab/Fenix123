@@ -109,7 +109,7 @@ Nombre: {s.get('nombre')}
 Teléfono: {s.get('telefono')}
 Correo: {s.get('correo')}
 
-Servicio: {s.get('service')}
+Servicio solicitado: Filtración de agua potable
 Tipo propiedad: {s.get('tipo')}
 Comuna: {s.get('comuna')}
 Superficie: {s.get('m2')} m2
@@ -134,7 +134,7 @@ Nombre: {s.get('nombre')}
 Teléfono: {s.get('telefono')}
 Correo: {s.get('correo')}
 
-Servicio: {s.get('service')}
+Servicio solicitado: Filtración de agua potable
 Tipo propiedad: {s.get('tipo')}
 Comuna: {s.get('comuna')}
 Superficie: {s.get('m2')} m2
@@ -149,35 +149,38 @@ Total: CLP {s.get('total', 0):,}
     enviar_correo_generico("Cliente aceptó valor estimado - Fenix Bot", cuerpo)
 
 
-def enviar_correo_interaccion(user, direccion, texto, session=None):
+def enviar_correo_lead_general(s):
+    service = s.get("service", "No informado")
+
+    nombres_servicio = {
+        "alcantarillado": "Alcantarillado / olores",
+        "piscina": "Piscina",
+        "seguro": "Informe para seguro",
+        "inspeccion": "Inspección técnica",
+        "auditoria": "Auditoría técnica",
+        "otro": "Otro"
+    }
+
+    servicio_nombre = nombres_servicio.get(service, service)
+
+    detalle_adicional = s.get("detalle", "No informado")
+
     cuerpo = f"""
-Interacción registrada
+Nuevo requerimiento registrado
 
 Fecha: {ahora()}
-Número: {user}
-Dirección: {direccion}
 
-Mensaje:
-{texto}
+Servicio solicitado: {servicio_nombre}
+
+Nombre: {s.get('nombre')}
+Teléfono: {s.get('telefono')}
+Correo: {s.get('correo', 'No informado')}
+
+Detalle del requerimiento:
+{detalle_adicional}
 """
 
-    if session:
-        cuerpo += f"""
-
-Contexto actual:
-step: {session.get('step')}
-service: {session.get('service')}
-tipo: {session.get('tipo')}
-nombre: {session.get('nombre')}
-telefono: {session.get('telefono')}
-correo: {session.get('correo')}
-comuna: {session.get('comuna')}
-m2: {session.get('m2')}
-banos: {session.get('banos')}
-seguro: {session.get('seguro')}
-"""
-
-    enviar_correo_generico(f"Interacción WhatsApp - {direccion}", cuerpo)
+    enviar_correo_generico(f"Nuevo requerimiento - {servicio_nombre}", cuerpo)
 
 
 # =========================
@@ -202,9 +205,6 @@ def send_message(to, text):
     response = requests.post(url, json=payload, headers=headers)
     print("Respuesta enviada:", response.text)
 
-    # registrar interacción saliente
-    enviar_correo_interaccion(to, "BOT → CLIENTE", text)
-
 
 # =========================
 # MENÚ
@@ -228,7 +228,7 @@ def menu():
 
 
 # =========================
-# CÁLCULO COTIZACIÓN
+# COTIZACIÓN FILTRACIÓN CASA
 # =========================
 
 def calcular_cotizacion(s):
@@ -240,11 +240,9 @@ def calcular_cotizacion(s):
     ampliacion = s.get("ampliacion", False)
     seguro = s.get("seguro", False)
 
-    # recargo comuna
     if "hospicio" in comuna:
         base += 40000
 
-    # escala base
     if m2 <= 100:
         factor = 1.0
     elif m2 <= 150:
@@ -256,22 +254,18 @@ def calcular_cotizacion(s):
     else:
         factor = 2.5
 
-    # baños adicionales
     if banos > 1:
         factor += (banos - 1) * 0.1
 
-    # ampliaciones
     if ampliacion:
         factor += 0.2
 
     precio_servicio = int(base * factor)
     total = precio_servicio + (60000 if seguro else 0)
 
-    # guardar en sesión para posible aceptación posterior
     s["precio_servicio"] = precio_servicio
     s["total"] = total
 
-    # correo de cotización
     enviar_correo_cotizacion(s, precio_servicio, total)
 
     respuesta = (
@@ -308,13 +302,13 @@ def handle_message(user, text):
 
     session = sessions[user]
 
-    # Reinicio manual
+    # reinicio
     if text in ["menu", "menú", "inicio", "hola", "reiniciar"]:
         sessions[user] = {"step": "menu"}
         return menu()
 
-    # aceptación de propuesta
-    if session.get("step") == "fin" and es_aceptacion(text):
+    # aceptación solo para filtración casa cotizada
+    if session.get("step") == "fin" and session.get("service") == "filtracion" and session.get("tipo") == "casa" and es_aceptacion(text):
         enviar_correo_aceptacion(session)
         return (
             "Excelente 👍\n\n"
@@ -339,34 +333,34 @@ def handle_message(user, text):
 
         if servicio_detectado == "alcantarillado":
             session["service"] = "alcantarillado"
-            session["step"] = "contacto_nombre"
+            session["step"] = "detalle"
             return (
                 "Entiendo 👍 esto parece un problema de *alcantarillado u olores*.\n\n"
-                "Indícame tu *nombre* para coordinar la evaluación técnica."
+                "Descríbenos brevemente el problema para registrarlo."
             )
 
         if servicio_detectado == "piscina":
             session["service"] = "piscina"
-            session["step"] = "contacto_nombre"
+            session["step"] = "detalle"
             return (
                 "Perfecto 👍 te ayudaremos con tu *piscina*.\n\n"
-                "Indícame tu *nombre* y te contactaremos para revisar el caso."
+                "Descríbenos brevemente el problema para registrarlo."
             )
 
         if servicio_detectado == "seguro":
             session["service"] = "seguro"
-            session["step"] = "contacto_nombre"
+            session["step"] = "detalle"
             return (
                 "Claro 👍 realizamos *informes técnicos para seguros*.\n\n"
-                "Indícame tu *nombre* para orientarte."
+                "Descríbenos brevemente lo que necesitas para registrarlo."
             )
 
         if servicio_detectado == "inspeccion":
             session["service"] = "inspeccion"
-            session["step"] = "contacto_nombre"
+            session["step"] = "detalle"
             return (
                 "Perfecto 👍 realizamos *inspecciones técnicas y auditorías*.\n\n"
-                "Indícame tu *nombre* para coordinar la evaluación."
+                "Descríbenos brevemente el objetivo de la evaluación."
             )
 
         if text == "1":
@@ -381,33 +375,33 @@ def handle_message(user, text):
 
         if text == "2":
             session["service"] = "alcantarillado"
-            session["step"] = "contacto_nombre"
-            return "Para alcantarillado u olores se requiere evaluación técnica.\n\nIndícame tu *nombre*."
+            session["step"] = "detalle"
+            return "Perfecto. Describe brevemente el problema de alcantarillado u olores."
 
         if text == "3":
             session["service"] = "piscina"
-            session["step"] = "contacto_nombre"
-            return "Para piscinas primero realizamos diagnóstico técnico.\n\nIndícame tu *nombre*."
+            session["step"] = "detalle"
+            return "Perfecto. Describe brevemente el problema de la piscina."
 
         if text == "4":
             session["service"] = "inspeccion"
-            session["step"] = "contacto_nombre"
-            return "Perfecto. Indícame tu *nombre* para coordinar la inspección técnica."
+            session["step"] = "detalle"
+            return "Perfecto. Describe brevemente el objetivo de la inspección técnica."
 
         if text == "5":
             session["service"] = "seguro"
-            session["step"] = "contacto_nombre"
-            return "Perfecto. Indícame tu *nombre* para preparar el informe técnico."
+            session["step"] = "detalle"
+            return "Perfecto. Describe brevemente lo que necesitas para el informe técnico."
 
         if text == "6":
             session["service"] = "auditoria"
-            session["step"] = "contacto_nombre"
-            return "Perfecto. Indícame tu *nombre* para coordinar la auditoría."
+            session["step"] = "detalle"
+            return "Perfecto. Describe brevemente el objetivo de la auditoría."
 
         if text == "7":
             session["service"] = "otro"
-            session["step"] = "contacto_nombre"
-            return "Cuéntame tu *nombre* y luego te derivamos con un ejecutivo."
+            session["step"] = "detalle"
+            return "Cuéntanos brevemente qué necesitas."
 
         return menu()
 
@@ -422,6 +416,7 @@ def handle_message(user, text):
 
             if "depart" in text or "depto" in text or "condominio" in text or "industria" in text:
                 session["tipo"] = "no_casa"
+                session["detalle"] = "Filtración en departamento, condominio o industria"
                 session["step"] = "contacto_nombre"
                 return (
                     "🏢 *Evaluación técnica en terreno*\n\n"
@@ -489,7 +484,12 @@ def handle_message(user, text):
             session["step"] = "fin"
             return calcular_cotizacion(session)
 
-    # ================= CONTACTO GENERAL =================
+    # ================= RESTO DE SERVICIOS =================
+    if session["step"] == "detalle":
+        session["detalle"] = text
+        session["step"] = "contacto_nombre"
+        return "Perfecto. Indícame tu *nombre*."
+
     if session["step"] == "contacto_nombre":
         session["nombre"] = text.title()
         session["step"] = "contacto_telefono"
@@ -497,12 +497,22 @@ def handle_message(user, text):
 
     if session["step"] == "contacto_telefono":
         session["telefono"] = text
+        session["step"] = "contacto_correo"
+        return "Indícame tu *correo electrónico* o escribe *no* si no deseas informarlo."
+
+    if session["step"] == "contacto_correo":
+        session["correo"] = "" if text in ["no", "n"] else text
         session["step"] = "fin"
+
+        # para todos los servicios distintos de filtración casa
+        if not (session.get("service") == "filtracion" and session.get("tipo") == "casa"):
+            enviar_correo_lead_general(session)
+
         return (
             "Gracias 👍\n\n"
             f"Nombre: {session.get('nombre')}\n"
             f"Teléfono: {session.get('telefono')}\n\n"
-            "Tu solicitud fue registrada. Un ejecutivo te contactará."
+            "Tu solicitud fue registrada correctamente. Un ejecutivo te contactará para coordinar la atención."
         )
 
     if session["step"] == "fin":
@@ -536,10 +546,6 @@ def receive_message():
         msg = value["messages"][0]
         user = msg["from"]
         text = msg.get("text", {}).get("body", "").strip().lower()
-
-        # registrar interacción entrante
-        current_session = sessions.get(user, {"step": "menu"})
-        enviar_correo_interaccion(user, "CLIENTE → BOT", text, current_session)
 
         response = handle_message(user, text)
         if response:
