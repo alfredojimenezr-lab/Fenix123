@@ -232,7 +232,7 @@ def menu():
 # =========================
 
 def calcular_cotizacion(s):
-    base = 270000
+    base = 300000
 
     comuna = s.get("comuna", "").lower()
     m2 = s.get("m2", 0)
@@ -246,19 +246,19 @@ def calcular_cotizacion(s):
     if m2 <= 100:
         factor = 1.0
     elif m2 <= 150:
-        factor = 1.0
+        factor = 1.5
     elif m2 <= 200:
-        factor = 1.3
-    elif m2 <= 300:
         factor = 2.0
-    else:
+    elif m2 <= 300:
         factor = 2.5
+    else:
+        factor = 3.0
 
     if banos > 1:
         factor += (banos - 1) * 0.1
 
     if ampliacion:
-        factor += 0.2
+        factor += 0.4
 
     precio_servicio = int(base * factor)
     total = precio_servicio + (60000 if seguro else 0)
