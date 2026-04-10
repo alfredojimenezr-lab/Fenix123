@@ -158,11 +158,11 @@ def enviar_correo_lead_general(s):
         "seguro": "Informe para seguro",
         "inspeccion": "Inspección técnica",
         "auditoria": "Auditoría técnica",
-        "otro": "Otro"
+        "otro": "Otro",
+        "filtracion": "Filtración"
     }
 
     servicio_nombre = nombres_servicio.get(service, service)
-
     detalle_adicional = s.get("detalle", "No informado")
 
     cuerpo = f"""
@@ -181,6 +181,30 @@ Detalle del requerimiento:
 """
 
     enviar_correo_generico(f"Nuevo requerimiento - {servicio_nombre}", cuerpo)
+
+
+def enviar_correo_visita_tecnica_casa_grande(s):
+    cuerpo = f"""
+Nuevo requerimiento - Casa sobre 350 m2
+
+Fecha: {ahora()}
+
+Servicio solicitado: Filtración de agua potable
+Tipo propiedad: {s.get('tipo')}
+Condición: Casa sobre 350 m2 - requiere visita técnica sin costo
+
+Nombre: {s.get('nombre')}
+Teléfono: {s.get('telefono')}
+Correo: {s.get('correo')}
+
+Comuna: {s.get('comuna')}
+Superficie: {s.get('m2')} m2
+Baños: {s.get('banos')}
+Ampliaciones: {"Sí" if s.get("ampliacion") else "No"}
+Informe para seguro: {"Sí" if s.get("seguro") else "No"}
+"""
+
+    enviar_correo_generico("Lead nuevo - Casa sobre 350 m2", cuerpo)
 
 
 # =========================
@@ -243,20 +267,39 @@ def calcular_cotizacion(s):
     if "hospicio" in comuna:
         base += 40000
 
+    # Casa sobre 350 m2 -> visita técnica y correo
+    if m2 > 350:
+        enviar_correo_visita_tecnica_casa_grande(s)
+
+        return (
+            "🏠 *Evaluación técnica en terreno*\n\n"
+            "Para casas de *más de 350 m²* realizamos una *visita técnica sin costo*, "
+            "ya que la magnitud de la propiedad requiere evaluar en terreno las condiciones de localización y reparación.\n\n"
+            "Luego de la visita generamos la *cotización oficial* con los alcances del servicio, condiciones de pago y garantías.\n\n"
+            f"Nombre: {s['nombre']}\n"
+            f"Teléfono: {s['telefono']}\n\n"
+            "Indícanos si deseas avanzar para coordinar la visita técnica."
+        )
+
+    # Escala base
     if m2 <= 100:
         factor = 1.0
     elif m2 <= 150:
         factor = 1.5
     elif m2 <= 200:
         factor = 2.0
-    elif m2 <= 300:
+    elif m2 <= 250:
         factor = 2.5
-    else:
+    elif m2 <= 300:
         factor = 3.0
+    else:  # <= 350
+        factor = 3.5
 
+    # Baños adicionales
     if banos > 1:
         factor += (banos - 1) * 0.1
 
+    # Ampliaciones
     if ampliacion:
         factor += 0.4
 
@@ -269,18 +312,18 @@ def calcular_cotizacion(s):
     enviar_correo_cotizacion(s, precio_servicio, total)
 
     respuesta = (
-        "💧 *Cotización estimada*\n\n"
-        f"💰 Servicio: CLP {precio_servicio:,}".replace(",", ".") +
+        "💧 *Precio estimado*\n\n"
+        f"💰 Localización de la filtración y reparación: CLP {precio_servicio:,}".replace(",", ".") +
         "\n"
     )
 
     if seguro:
         respuesta += "📄 Informe para seguro: CLP 60.000\n"
-        respuesta += f"\n💵 Total: CLP {total:,}".replace(",", ".")
+        respuesta += f"\n💵 Total estimado: CLP {total:,}".replace(",", ".")
 
     respuesta += (
         "\n\n"
-        "✔ Incluye localización precisa de la filtración\n"
+        "✔ Incluye localización de la filtración y reparación\n"
         "✔ Equipos especializados para detección\n"
         "✔ Minimiza demoliciones innecesarias\n\n"
         f"Nombre: {s['nombre']}\n"
@@ -302,12 +345,10 @@ def handle_message(user, text):
 
     session = sessions[user]
 
-    # reinicio
     if text in ["menu", "menú", "inicio", "hola", "reiniciar"]:
         sessions[user] = {"step": "menu"}
         return menu()
 
-    # aceptación solo para filtración casa cotizada
     if session.get("step") == "fin" and session.get("service") == "filtracion" and session.get("tipo") == "casa" and es_aceptacion(text):
         enviar_correo_aceptacion(session)
         return (
@@ -504,7 +545,6 @@ def handle_message(user, text):
         session["correo"] = "" if text in ["no", "n"] else text
         session["step"] = "fin"
 
-        # para todos los servicios distintos de filtración casa
         if not (session.get("service") == "filtracion" and session.get("tipo") == "casa"):
             enviar_correo_lead_general(session)
 
