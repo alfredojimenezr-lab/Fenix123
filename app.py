@@ -68,6 +68,28 @@ def detectar_servicio(texto):
     return None
 
 
+def detectar_urgencia(texto):
+    texto = texto.lower()
+
+    palabras_urgencia = [
+        "urgente",
+        "inundacion",
+        "inundación",
+        "mucha agua",
+        "sale mucha agua",
+        "fuga grande",
+        "se está llenando",
+        "se esta llenando",
+        "no puedo cerrar la llave",
+        "no puedo cortar el agua",
+        "rebalsa",
+        "rebalse",
+        "chorro de agua"
+    ]
+
+    return any(p in texto for p in palabras_urgencia)
+
+
 # =========================
 # CORREO
 # =========================
@@ -100,6 +122,8 @@ def enviar_correo_generico(asunto, cuerpo):
 
 
 def enviar_correo_cotizacion(s, precio_servicio, total):
+    urgencia = "Sí" if s.get("urgente") else "No"
+
     cuerpo = f"""
 Nueva cotización registrada
 
@@ -115,16 +139,23 @@ Comuna: {s.get('comuna')}
 Superficie: {s.get('m2')} m2
 Baños: {s.get('banos')}
 Ampliaciones: {"Sí" if s.get("ampliacion") else "No"}
+Urgencia: {urgencia}
 
 Informe para seguro: {"Sí" if s.get("seguro") else "No"}
 Valor servicio: CLP {precio_servicio:,}
 Total: CLP {total:,}
 """.replace(",", ".")
 
-    enviar_correo_generico("Nueva cotización - Fenix Bot", cuerpo)
+    asunto = "Nueva cotización - Fenix Bot"
+    if s.get("urgente"):
+        asunto = "🚨 URGENTE - Nueva cotización - Fenix Bot"
+
+    enviar_correo_generico(asunto, cuerpo)
 
 
 def enviar_correo_aceptacion(s):
+    urgencia = "Sí" if s.get("urgente") else "No"
+
     cuerpo = f"""
 Cliente acepta valor estimado
 
@@ -140,16 +171,23 @@ Comuna: {s.get('comuna')}
 Superficie: {s.get('m2')} m2
 Baños: {s.get('banos')}
 Ampliaciones: {"Sí" if s.get("ampliacion") else "No"}
+Urgencia: {urgencia}
 
 Informe para seguro: {"Sí" if s.get("seguro") else "No"}
 Valor servicio: CLP {s.get('precio_servicio', 0):,}
 Total: CLP {s.get('total', 0):,}
 """.replace(",", ".")
 
-    enviar_correo_generico("Cliente aceptó valor estimado - Fenix Bot", cuerpo)
+    asunto = "Cliente aceptó valor estimado - Fenix Bot"
+    if s.get("urgente"):
+        asunto = "🚨 URGENTE - Cliente aceptó valor estimado - Fenix Bot"
+
+    enviar_correo_generico(asunto, cuerpo)
 
 
 def enviar_correo_lead_general(s):
+    service = s.get("service", "No informado")
+
     nombres_servicio = {
         "alcantarillado": "Alcantarillado / olores",
         "piscina": "Piscina",
@@ -157,11 +195,12 @@ def enviar_correo_lead_general(s):
         "inspeccion": "Inspección técnica",
         "auditoria": "Auditoría técnica",
         "otro": "Otro",
-        "filtracion": "Filtración",
-        "visita_tecnica": "Visita técnica"
+        "filtracion": "Filtración"
     }
 
-    servicio_nombre = nombres_servicio.get(s.get("service"), s.get("service", "No informado"))
+    servicio_nombre = nombres_servicio.get(service, service)
+    detalle_adicional = s.get("detalle", "No informado")
+    urgencia = "Sí" if s.get("urgente") else "No"
 
     cuerpo = f"""
 Nuevo requerimiento registrado
@@ -169,19 +208,26 @@ Nuevo requerimiento registrado
 Fecha: {ahora()}
 
 Servicio solicitado: {servicio_nombre}
+Urgencia: {urgencia}
 
 Nombre: {s.get('nombre')}
 Teléfono: {s.get('telefono')}
 Correo: {s.get('correo', 'No informado')}
 
 Detalle del requerimiento:
-{s.get('detalle', 'No informado')}
+{detalle_adicional}
 """
 
-    enviar_correo_generico(f"Nuevo requerimiento - {servicio_nombre}", cuerpo)
+    asunto = f"Nuevo requerimiento - {servicio_nombre}"
+    if s.get("urgente"):
+        asunto = f"🚨 URGENTE - Nuevo requerimiento - {servicio_nombre}"
+
+    enviar_correo_generico(asunto, cuerpo)
 
 
 def enviar_correo_visita_tecnica_casa_grande(s):
+    urgencia = "Sí" if s.get("urgente") else "No"
+
     cuerpo = f"""
 Nuevo requerimiento - Casa sobre 350 m2
 
@@ -190,6 +236,7 @@ Fecha: {ahora()}
 Servicio solicitado: Filtración de agua potable
 Tipo propiedad: {s.get('tipo')}
 Condición: Casa sobre 350 m2 - requiere visita técnica sin costo
+Urgencia: {urgencia}
 
 Nombre: {s.get('nombre')}
 Teléfono: {s.get('telefono')}
@@ -202,46 +249,9 @@ Ampliaciones: {"Sí" if s.get("ampliacion") else "No"}
 Informe para seguro: {"Sí" if s.get("seguro") else "No"}
 """
 
-    enviar_correo_generico("Lead nuevo - Casa sobre 350 m2", cuerpo)
-
-
-def enviar_correo_agenda(s, tipo_agenda):
-    if tipo_agenda == "casa":
-        cuerpo = f"""
-Nueva agenda registrada
-
-Fecha: {ahora()}
-
-Servicio: Filtración de agua potable en casa
-Nombre: {s.get('nombre')}
-Teléfono: {s.get('telefono')}
-Correo: {s.get('correo')}
-
-Día agendado: {s.get('dia_agenda')}
-Valor servicio: CLP {s.get('precio_servicio', 0):,}
-Total: CLP {s.get('total', 0):,}
-""".replace(",", ".")
-
-        asunto = "Nueva agenda - Filtración casa"
-
-    else:
-        cuerpo = f"""
-Nueva agenda registrada
-
-Fecha: {ahora()}
-
-Servicio: {s.get('service')}
-Nombre: {s.get('nombre')}
-Teléfono: {s.get('telefono')}
-Correo: {s.get('correo')}
-
-Detalle:
-{s.get('detalle', 'No informado')}
-
-Día agendado: {s.get('dia_agenda')}
-Bloque: {s.get('bloque_agenda')}
-"""
-        asunto = "Nueva agenda - Visita técnica"
+    asunto = "Lead nuevo - Casa sobre 350 m2"
+    if s.get("urgente"):
+        asunto = "🚨 URGENTE - Lead nuevo - Casa sobre 350 m2"
 
     enviar_correo_generico(asunto, cuerpo)
 
@@ -309,14 +319,24 @@ def calcular_cotizacion(s):
     if m2 > 350:
         enviar_correo_visita_tecnica_casa_grande(s)
 
-        return (
+        respuesta = (
             "🏠 *Evaluación técnica en terreno*\n\n"
-            "Para casas de *más de 350 m²* realizamos una *visita técnica sin costo*, ya que la magnitud de la propiedad requiere evaluar en terreno las condiciones de localización y reparación.\n\n"
+            "Para casas de *más de 350 m²* realizamos una *visita técnica sin costo*, "
+            "ya que la magnitud de la propiedad requiere evaluar en terreno las condiciones de localización y reparación.\n\n"
             "Luego de la visita generamos la *cotización oficial* con los alcances del servicio, condiciones de pago y garantías.\n\n"
             f"Nombre: {s['nombre']}\n"
             f"Teléfono: {s['telefono']}\n\n"
             "Indícanos si deseas avanzar para coordinar la visita técnica."
         )
+
+        if s.get("urgente"):
+            respuesta = (
+                "🚨 *Caso prioritario detectado*\n\n"
+                + respuesta
+                + "\n\nTe recomendamos cerrar o aislar el paso de agua si es posible y esperar contacto prioritario de nuestro equipo."
+            )
+
+        return respuesta
 
     if m2 <= 100:
         factor = 1.0
@@ -366,6 +386,13 @@ def calcular_cotizacion(s):
         "Contamos con todos los medios de pago disponibles."
     )
 
+    if s.get("urgente"):
+        respuesta = (
+            "🚨 *Caso prioritario detectado*\n\n"
+            + respuesta
+            + "\n\nDaremos prioridad a tu solicitud."
+        )
+
     return respuesta
 
 
@@ -375,60 +402,36 @@ def calcular_cotizacion(s):
 
 def handle_message(user, text):
     if user not in sessions:
-        sessions[user] = {"step": "menu"}
+        sessions[user] = {"step": "menu", "urgente": False}
 
     session = sessions[user]
 
+    # marcar urgencia en cualquier punto de la conversación
+    if detectar_urgencia(text):
+        session["urgente"] = True
+
     if text in ["menu", "menú", "inicio", "hola", "reiniciar"]:
-        sessions[user] = {"step": "menu"}
+        sessions[user] = {"step": "menu", "urgente": False}
         return menu()
 
-    # aceptación de presupuesto casa
     if session.get("step") == "fin" and session.get("service") == "filtracion" and session.get("tipo") == "casa" and es_aceptacion(text):
         enviar_correo_aceptacion(session)
-        session["step"] = "agenda_dia"
-        return (
+
+        respuesta = (
             "Excelente 👍\n\n"
-            "Hemos registrado tu aceptación del valor estimado.\n\n"
-            "Para coordinar la visita, indícanos por favor el *día* que te acomoda."
+            "Hemos registrado tu aceptación del valor estimado.\n"
+            "A continuación generaremos la *cotización oficial* con los alcances del servicio, condiciones de pago, garantías y coordinación de agenda.\n\n"
+            "Un ejecutivo te contactará a la brevedad."
         )
 
-    # agenda filtración casa: solo día
-    if session.get("step") == "agenda_dia":
-        session["dia_agenda"] = text
-        enviar_correo_agenda(session, "casa")
-        session["step"] = "cerrado"
-        return (
-            f"📅 Hemos registrado tu solicitud para el día: *{text}*.\n\n"
-            "Un ejecutivo te contactará para confirmar la agenda."
-        )
+        if session.get("urgente"):
+            respuesta = (
+                "🚨 *Aceptación prioritaria registrada*\n\n"
+                + respuesta
+            )
 
-    # agenda visita técnica: día y bloque
-    if session.get("step") == "agenda_visita_dia":
-        session["dia_agenda"] = text
-        session["step"] = "agenda_visita_bloque"
-        return "Perfecto 👍 Ahora indícanos el *bloque horario*: *mañana* o *tarde*."
+        return respuesta
 
-    if session.get("step") == "agenda_visita_bloque":
-        if "mañ" in text:
-            session["bloque_agenda"] = "mañana"
-        elif "tard" in text:
-            session["bloque_agenda"] = "tarde"
-        else:
-            return "Por favor responde *mañana* o *tarde*."
-
-        enviar_correo_agenda(session, "visita_tecnica")
-        session["step"] = "cerrado"
-        return (
-            f"📅 Hemos registrado tu solicitud para el día: *{session['dia_agenda']}*.\n"
-            f"🕒 Bloque: *{session['bloque_agenda']}*.\n\n"
-            "Un ejecutivo te contactará para confirmar la visita."
-        )
-
-    if session.get("step") == "cerrado":
-        return "Tu solicitud ya fue registrada. Si deseas comenzar de nuevo, escribe *inicio*."
-
-    # ================= MENU =================
     if session["step"] == "menu":
         servicio_detectado = detectar_servicio(text)
 
@@ -516,7 +519,6 @@ def handle_message(user, text):
 
         return menu()
 
-    # ================= FILTRACIÓN =================
     if session.get("service") == "filtracion":
 
         if session["step"] == "tipo_propiedad":
@@ -595,7 +597,6 @@ def handle_message(user, text):
             session["step"] = "fin"
             return calcular_cotizacion(session)
 
-    # ================= RESTO DE SERVICIOS =================
     if session["step"] == "detalle":
         session["detalle"] = text
         session["step"] = "contacto_nombre"
@@ -613,17 +614,28 @@ def handle_message(user, text):
 
     if session["step"] == "contacto_correo":
         session["correo"] = "" if text in ["no", "n"] else text
+        session["step"] = "fin"
 
         if not (session.get("service") == "filtracion" and session.get("tipo") == "casa"):
             enviar_correo_lead_general(session)
 
-        session["step"] = "agenda_visita_dia"
-        return (
+        respuesta = (
             "Gracias 👍\n\n"
             f"Nombre: {session.get('nombre')}\n"
             f"Teléfono: {session.get('telefono')}\n\n"
-            "Para coordinar la visita técnica, indícanos por favor el *día* que te acomoda."
+            "Tu solicitud fue registrada correctamente. Un ejecutivo te contactará para coordinar la atención."
         )
+
+        if session.get("urgente"):
+            respuesta = (
+                "🚨 *Caso prioritario registrado*\n\n"
+                + respuesta
+            )
+
+        return respuesta
+
+    if session["step"] == "fin":
+        return "Tu solicitud ya fue registrada. Si deseas comenzar de nuevo, escribe *inicio*."
 
     return menu()
 
@@ -642,7 +654,7 @@ def verify():
 @app.route("/webhook", methods=["POST"])
 def receive_message():
     data = request.get_json(silent=True)
-    print("DATA:", data)
+    print("Mensaje recibido:", data)
 
     try:
         value = data["entry"][0]["changes"][0]["value"]
@@ -650,20 +662,19 @@ def receive_message():
         if "messages" not in value:
             return "ok", 200
 
-        message = value["messages"][0]
-        from_number = message["from"]
-        incoming = message.get("text", {}).get("body", "").lower().strip()
+        msg = value["messages"][0]
+        user = msg["from"]
+        text = msg.get("text", {}).get("body", "").strip().lower()
 
-        response = handle_message(from_number, incoming)
+        response = handle_message(user, text)
         if response:
-            send_whatsapp_message(from_number, response)
+            send_message(user, response)
 
     except Exception as e:
-        print("Error:", e)
+        print("Error en webhook:", e)
 
     return "ok", 200
 
 
-@app.route("/")
-def home():
-    return "Bot activo", 200
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
