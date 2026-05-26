@@ -13,254 +13,202 @@ PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID")
 
 sessions = {}
 
+# =====================================================
+# CONFIGURACIÓN GENERAL
+# =====================================================
 
-# =========================
+BASE_PRICE = 250000
+PRECIO_DIESEL = 1300
+VALOR_INFORME = 60000
+
+LOCALIDADES = {
+    "iquique": {
+        "km": 0,
+        "extra_fijo": 0
+    },
+
+    "alto hospicio": {
+        "km": 0,
+        "extra_fijo": 40000
+    },
+
+    "pozo almonte": {
+        "km": 110,
+        "extra_fijo": 0
+    },
+
+    "pica": {
+        "km": 240,
+        "extra_fijo": 0
+    },
+
+    "arica": {
+        "km": 600,
+        "extra_fijo": 0
+    }
+}
+
+
+# =====================================================
 # UTILIDADES
-# =========================
+# =====================================================
 
 def ahora():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def es_aceptacion(texto):
+def normalizar_localidad(texto):
+
     texto = texto.lower().strip()
+
+    if "alto" in texto or "hospicio" in texto:
+        return "alto hospicio"
+
+    if "pozo" in texto or "almonte" in texto:
+        return "pozo almonte"
+
+    if "pica" in texto:
+        return "pica"
+
+    if "arica" in texto:
+        return "arica"
+
+    if "iquique" in texto:
+        return "iquique"
+
+    return "iquique"
+
+
+def es_aceptacion(texto):
+
+    texto = texto.lower().strip()
+
     afirmativos = [
-        "si", "sí", "ok", "de acuerdo", "acepto", "aceptar",
-        "conforme", "me parece", "quiero agendar", "agendar",
-        "avancemos", "adelante", "confirmo", "confirmar"
+        "si",
+        "sí",
+        "ok",
+        "acepto",
+        "de acuerdo",
+        "adelante",
+        "avancemos",
+        "confirmo",
+        "agendar",
+        "quiero"
     ]
-    return any(a in texto for a in afirmativos)
+
+    return any(x in texto for x in afirmativos)
 
 
 def detectar_servicio(texto):
+
     texto = texto.lower()
 
-    if any(p in texto for p in [
-        "filtracion", "filtración", "fuga", "goteo", "pierde agua",
-        "humedad", "mojado", "mancha", "agua en muro", "agua en piso",
-        "filtra agua", "fuga de agua"
+    if any(x in texto for x in [
+        "filtracion",
+        "filtración",
+        "fuga",
+        "humedad",
+        "goteo",
+        "pierde agua"
     ]):
         return "filtracion"
 
-    if any(p in texto for p in [
-        "olor", "hedor", "alcantarillado", "desagüe", "desague",
-        "mal olor", "olor a desague", "olor a alcantarillado"
+    if any(x in texto for x in [
+        "alcantarillado",
+        "olor",
+        "hedor",
+        "desague",
+        "desagüe"
     ]):
         return "alcantarillado"
 
-    if any(p in texto for p in [
-        "piscina", "agua verde", "agua turbia", "cloro", "ph",
-        "bomba piscina", "filtro piscina"
+    if any(x in texto for x in [
+        "piscina",
+        "agua verde",
+        "agua turbia"
     ]):
         return "piscina"
 
-    if any(p in texto for p in [
-        "seguro", "informe", "aseguradora", "liquidacion", "liquidación"
+    if any(x in texto for x in [
+        "seguro",
+        "informe",
+        "aseguradora"
     ]):
         return "seguro"
 
-    if any(p in texto for p in [
-        "revision", "revisión", "inspeccion", "inspección",
-        "evaluacion", "evaluación", "auditoria", "auditoría"
+    if any(x in texto for x in [
+        "inspeccion",
+        "inspección",
+        "auditoria",
+        "auditoría"
     ]):
         return "inspeccion"
 
     return None
 
 
-def detectar_urgencia(texto):
-    texto = texto.lower()
+def calcular_traslado(localidad):
 
-    palabras_urgencia = [
-        "urgente",
-        "inundacion",
-        "inundación",
-        "mucha agua",
-        "sale mucha agua",
-        "fuga grande",
-        "se está llenando",
-        "se esta llenando",
-        "no puedo cerrar la llave",
-        "no puedo cortar el agua",
-        "rebalsa",
-        "rebalse",
-        "chorro de agua"
-    ]
+    localidad = localidad.lower()
 
-    return any(p in texto for p in palabras_urgencia)
+    if localidad not in LOCALIDADES:
+        return 0
+
+    km = LOCALIDADES[localidad]["km"]
+
+    if km == 0:
+        return LOCALIDADES[localidad]["extra_fijo"]
+
+    litros = km / 8
+
+    costo = litros * PRECIO_DIESEL
+
+    costo = costo * 1.15
+
+    return int(costo)
 
 
-# =========================
+# =====================================================
 # CORREO
-# =========================
+# =====================================================
 
-def enviar_correo_generico(asunto, cuerpo):
+def enviar_correo(asunto, cuerpo):
+
     try:
+
         remitente = os.environ.get("EMAIL_REMITENTE")
         clave = os.environ.get("EMAIL_PASSWORD_APP")
         destino = os.environ.get("EMAIL_DESTINO")
 
-        if not remitente or not clave or not destino:
-            print("❌ Faltan variables EMAIL_REMITENTE, EMAIL_PASSWORD_APP o EMAIL_DESTINO")
-            return
-
         msg = MIMEText(cuerpo, "plain", "utf-8")
+
         msg["Subject"] = asunto
         msg["From"] = remitente
         msg["To"] = destino
 
         server = smtplib.SMTP("smtp.gmail.com", 587)
+
         server.starttls()
+
         server.login(remitente, clave)
+
         server.send_message(msg)
+
         server.quit()
 
-        print("✅ Correo enviado correctamente:", asunto)
+        print("Correo enviado")
 
     except Exception as e:
-        print("❌ Error enviando correo:", e)
+
+        print("Error correo:", e)
 
 
-def enviar_correo_cotizacion(s, precio_servicio, total):
-    urgencia = "Sí" if s.get("urgente") else "No"
-
-    cuerpo = f"""
-Nueva cotización registrada
-
-Fecha: {ahora()}
-
-Nombre: {s.get('nombre')}
-Teléfono: {s.get('telefono')}
-Correo: {s.get('correo')}
-
-Servicio solicitado: Filtración de agua potable
-Tipo propiedad: {s.get('tipo')}
-Comuna: {s.get('comuna')}
-Superficie: {s.get('m2')} m2
-Baños: {s.get('banos')}
-Ampliaciones: {"Sí" if s.get("ampliacion") else "No"}
-Urgencia: {urgencia}
-
-Informe para seguro: {"Sí" if s.get("seguro") else "No"}
-Valor servicio: CLP {precio_servicio:,}
-Total: CLP {total:,}
-""".replace(",", ".")
-
-    asunto = "Nueva cotización - Fenix Bot"
-    if s.get("urgente"):
-        asunto = "🚨 URGENTE - Nueva cotización - Fenix Bot"
-
-    enviar_correo_generico(asunto, cuerpo)
-
-
-def enviar_correo_aceptacion(s):
-    urgencia = "Sí" if s.get("urgente") else "No"
-
-    cuerpo = f"""
-Cliente acepta valor estimado
-
-Fecha: {ahora()}
-
-Nombre: {s.get('nombre')}
-Teléfono: {s.get('telefono')}
-Correo: {s.get('correo')}
-
-Servicio solicitado: Filtración de agua potable
-Tipo propiedad: {s.get('tipo')}
-Comuna: {s.get('comuna')}
-Superficie: {s.get('m2')} m2
-Baños: {s.get('banos')}
-Ampliaciones: {"Sí" if s.get("ampliacion") else "No"}
-Urgencia: {urgencia}
-
-Informe para seguro: {"Sí" if s.get("seguro") else "No"}
-Valor servicio: CLP {s.get('precio_servicio', 0):,}
-Total: CLP {s.get('total', 0):,}
-""".replace(",", ".")
-
-    asunto = "Cliente aceptó valor estimado - Fenix Bot"
-    if s.get("urgente"):
-        asunto = "🚨 URGENTE - Cliente aceptó valor estimado - Fenix Bot"
-
-    enviar_correo_generico(asunto, cuerpo)
-
-
-def enviar_correo_lead_general(s):
-    service = s.get("service", "No informado")
-
-    nombres_servicio = {
-        "alcantarillado": "Alcantarillado / olores",
-        "piscina": "Piscina",
-        "seguro": "Informe para seguro",
-        "inspeccion": "Inspección técnica",
-        "auditoria": "Auditoría técnica",
-        "otro": "Otro",
-        "filtracion": "Filtración"
-    }
-
-    servicio_nombre = nombres_servicio.get(service, service)
-    detalle_adicional = s.get("detalle", "No informado")
-    urgencia = "Sí" if s.get("urgente") else "No"
-
-    cuerpo = f"""
-Nuevo requerimiento registrado
-
-Fecha: {ahora()}
-
-Servicio solicitado: {servicio_nombre}
-Urgencia: {urgencia}
-
-Nombre: {s.get('nombre')}
-Teléfono: {s.get('telefono')}
-Correo: {s.get('correo', 'No informado')}
-
-Detalle del requerimiento:
-{detalle_adicional}
-"""
-
-    asunto = f"Nuevo requerimiento - {servicio_nombre}"
-    if s.get("urgente"):
-        asunto = f"🚨 URGENTE - Nuevo requerimiento - {servicio_nombre}"
-
-    enviar_correo_generico(asunto, cuerpo)
-
-
-def enviar_correo_visita_tecnica_casa_grande(s):
-    urgencia = "Sí" if s.get("urgente") else "No"
-
-    cuerpo = f"""
-Nuevo requerimiento - Casa sobre 350 m2
-
-Fecha: {ahora()}
-
-Servicio solicitado: Filtración de agua potable
-Tipo propiedad: {s.get('tipo')}
-Condición: Casa sobre 350 m2 - requiere visita técnica sin costo
-Urgencia: {urgencia}
-
-Nombre: {s.get('nombre')}
-Teléfono: {s.get('telefono')}
-Correo: {s.get('correo')}
-
-Comuna: {s.get('comuna')}
-Superficie: {s.get('m2')} m2
-Baños: {s.get('banos')}
-Ampliaciones: {"Sí" if s.get("ampliacion") else "No"}
-Informe para seguro: {"Sí" if s.get("seguro") else "No"}
-"""
-
-    asunto = "Lead nuevo - Casa sobre 350 m2"
-    if s.get("urgente"):
-        asunto = "🚨 URGENTE - Lead nuevo - Casa sobre 350 m2"
-
-    enviar_correo_generico(asunto, cuerpo)
-
-
-# =========================
+# =====================================================
 # WHATSAPP
-# =========================
+# =====================================================
 
 def send_message(to, text):
+
     url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
 
     headers = {
@@ -272,23 +220,35 @@ def send_message(to, text):
         "messaging_product": "whatsapp",
         "to": to,
         "type": "text",
-        "text": {"body": text}
+        "text": {
+            "body": text
+        }
     }
 
-    response = requests.post(url, json=payload, headers=headers)
-    print("Respuesta enviada:", response.text)
+    response = requests.post(
+        url,
+        json=payload,
+        headers=headers
+    )
+
+    print(response.text)
 
 
-# =========================
+# =====================================================
 # MENÚ
-# =========================
+# =====================================================
 
 def menu():
+
     return (
         "Hola 👋 Soy *FÉNIX – Especialistas en detección de fugas*\n\n"
+
         "💧 Detectamos filtraciones sin romper de más\n"
-        "📍 Atención en Iquique y Alto Hospicio\n\n"
-        "Indica tu problema o selecciona una opción:\n\n"
+        "📍 Atención en Iquique, Alto Hospicio, "
+        "Pozo Almonte, Pica y Arica\n\n"
+
+        "Selecciona una opción:\n\n"
+
         "1️⃣ Filtración de agua potable\n"
         "2️⃣ Olor / alcantarillado\n"
         "3️⃣ Problemas en piscina\n"
@@ -296,60 +256,88 @@ def menu():
         "5️⃣ Informe para seguro\n"
         "6️⃣ Auditoría técnica\n"
         "7️⃣ Otro\n\n"
+
         "Responde con el número o describe tu problema."
     )
 
 
-# =========================
+# =====================================================
 # COTIZACIÓN FILTRACIÓN CASA
-# =========================
+# =====================================================
 
 def calcular_cotizacion(s):
-    base = 250000
 
-    comuna = s.get("comuna", "").lower()
+    localidad = s.get("localidad", "").lower()
     m2 = s.get("m2", 0)
     banos = s.get("banos", 1)
     ampliacion = s.get("ampliacion", False)
     seguro = s.get("seguro", False)
 
-    if "hospicio" in comuna:
-        base += 40000
-
-    if m2 > 350:
-        enviar_correo_visita_tecnica_casa_grande(s)
-
-        respuesta = (
-            "🏠 *Evaluación técnica en terreno*\n\n"
-            "Para casas de *más de 350 m²* realizamos una *visita técnica sin costo*, "
-            "ya que la magnitud de la propiedad requiere evaluar en terreno las condiciones de localización y reparación.\n\n"
-            "Luego de la visita generamos la *cotización oficial* con los alcances del servicio, condiciones de pago y garantías.\n\n"
-            f"Nombre: {s['nombre']}\n"
-            f"Teléfono: {s['telefono']}\n\n"
-            "Indícanos si deseas avanzar para coordinar la visita técnica."
-        )
-
-        if s.get("urgente"):
-            respuesta = (
-                "🚨 *Caso prioritario detectado*\n\n"
-                + respuesta
-                + "\n\nTe recomendamos cerrar o aislar el paso de agua si es posible y esperar contacto prioritario de nuestro equipo."
-            )
-
-        return respuesta
+    # ==========================================
+    # FACTOR COMPLEJIDAD
+    # ==========================================
 
     if m2 <= 100:
         factor = 1.0
+
     elif m2 <= 150:
         factor = 1.5
+
     elif m2 <= 200:
         factor = 2.0
+
     elif m2 <= 250:
         factor = 2.5
+
     elif m2 <= 300:
         factor = 3.0
-    else:
+
+    elif m2 <= 350:
         factor = 3.5
+
+    else:
+
+        s["step"] = "agenda_visita_dia"
+
+        cuerpo = f"""
+Nuevo requerimiento - Casa sobre 350 m2
+
+Fecha: {ahora()}
+
+Servicio: Filtración de agua potable
+
+Nombre: {s.get('nombre')}
+Teléfono: {s.get('telefono')}
+Correo: {s.get('correo')}
+
+Localidad: {localidad}
+m2: {m2}
+Baños: {banos}
+
+Ampliación: {"Sí" if ampliacion else "No"}
+Informe seguro: {"Sí" if seguro else "No"}
+
+Requiere visita técnica sin costo.
+"""
+
+        enviar_correo(
+            "Lead casa sobre 350 m2",
+            cuerpo
+        )
+
+        return (
+            "🏠 *Evaluación técnica en terreno*\n\n"
+
+            "Para propiedades sobre 350 m² "
+            "se requiere visita técnica sin costo.\n\n"
+
+            "Indícanos por favor el *día* "
+            "que te acomoda."
+        )
+
+    # ==========================================
+    # AJUSTES
+    # ==========================================
 
     if banos > 1:
         factor += (banos - 1) * 0.1
@@ -357,324 +345,643 @@ def calcular_cotizacion(s):
     if ampliacion:
         factor += 0.4
 
-    precio_servicio = int(base * factor)
-    total = precio_servicio + (60000 if seguro else 0)
+    precio_servicio = int(BASE_PRICE * factor)
 
+    traslado = calcular_traslado(localidad)
+
+    total = precio_servicio + traslado
+
+    if seguro:
+        total += VALOR_INFORME
+
+    # guardar sesión
     s["precio_servicio"] = precio_servicio
+    s["traslado"] = traslado
     s["total"] = total
 
-    enviar_correo_cotizacion(s, precio_servicio, total)
+    s["step"] = "fin"
+
+    # ==========================================
+    # CORREO
+    # ==========================================
+
+    cuerpo = f"""
+Nueva cotización registrada
+
+Fecha: {ahora()}
+
+Nombre: {s.get('nombre')}
+Teléfono: {s.get('telefono')}
+Correo: {s.get('correo')}
+
+Servicio: Filtración de agua potable
+
+Localidad: {localidad}
+m2: {m2}
+Baños: {banos}
+
+Ampliación: {"Sí" if ampliacion else "No"}
+Informe seguro: {"Sí" if seguro else "No"}
+
+Valor servicio: {precio_servicio}
+Traslado: {traslado}
+Total: {total}
+"""
+
+    enviar_correo(
+        "Nueva cotización - Fenix Bot",
+        cuerpo
+    )
+
+    # ==========================================
+    # RESPUESTA
+    # ==========================================
 
     respuesta = (
         "💧 *Precio estimado*\n\n"
-        f"💰 Localización de la filtración y reparación: CLP {precio_servicio:,}".replace(",", ".") +
-        "\n"
-    )
+
+        f"🔧 Localización y reparación: "
+        f"CLP {precio_servicio:,}\n"
+    ).replace(",", ".")
+
+    if traslado > 0:
+
+        respuesta += (
+            f"🚚 Traslado ({localidad.title()}): "
+            f"CLP {traslado:,}\n"
+        ).replace(",", ".")
 
     if seguro:
-        respuesta += "📄 Informe para seguro: CLP 60.000\n"
-        respuesta += f"\n💵 Total estimado: CLP {total:,}".replace(",", ".")
+
+        respuesta += (
+            f"📄 Informe para seguro: "
+            f"CLP {VALOR_INFORME:,}\n"
+        ).replace(",", ".")
 
     respuesta += (
-        "\n\n"
+        f"\n💰 *Total estimado:* "
+        f"CLP {total:,}\n\n"
+    ).replace(",", ".")
+
+    respuesta += (
         "✔ Incluye localización de la filtración y reparación\n"
-        "✔ Equipos especializados para detección\n"
+        "✔ Equipos especializados\n"
         "✔ Minimiza demoliciones innecesarias\n\n"
+
         f"Nombre: {s['nombre']}\n"
         f"Teléfono: {s['telefono']}\n\n"
-        "Indícanos si estás de acuerdo para generar la *cotización oficial* con los alcances del servicio, condiciones de pago, garantías y agendar el inicio del servicio.\n"
-        "Contamos con todos los medios de pago disponibles."
-    )
 
-    if s.get("urgente"):
-        respuesta = (
-            "🚨 *Caso prioritario detectado*\n\n"
-            + respuesta
-            + "\n\nDaremos prioridad a tu solicitud."
-        )
+        "Indícanos si deseas avanzar "
+        "para agendar el servicio."
+    )
 
     return respuesta
 
 
-# =========================
+# =====================================================
 # LÓGICA PRINCIPAL
-# =========================
+# =====================================================
 
 def handle_message(user, text):
+
     if user not in sessions:
-        sessions[user] = {"step": "menu", "urgente": False}
+        sessions[user] = {
+            "step": "menu"
+        }
 
     session = sessions[user]
 
-    # marcar urgencia en cualquier punto de la conversación
-    if detectar_urgencia(text):
-        session["urgente"] = True
+    text = text.lower().strip()
 
-    if text in ["menu", "menú", "inicio", "hola", "reiniciar"]:
-        sessions[user] = {"step": "menu", "urgente": False}
+    # ==========================================
+    # RESET
+    # ==========================================
+
+    if text in [
+        "hola",
+        "inicio",
+        "menu",
+        "menú"
+    ]:
+
+        sessions[user] = {
+            "step": "menu"
+        }
+
         return menu()
 
-    if session.get("step") == "fin" and session.get("service") == "filtracion" and session.get("tipo") == "casa" and es_aceptacion(text):
-        enviar_correo_aceptacion(session)
+    # ==========================================
+    # AGENDA CASA
+    # ==========================================
 
-        respuesta = (
-            "Excelente 👍\n\n"
-            "Hemos registrado tu aceptación del valor estimado.\n"
-            "A continuación generaremos la *cotización oficial* con los alcances del servicio, condiciones de pago, garantías y coordinación de agenda.\n\n"
-            "Un ejecutivo te contactará a la brevedad."
+    if session.get("step") == "agenda_casa_dia":
+
+        session["dia_agenda"] = text
+
+        cuerpo = f"""
+Nueva agenda registrada
+
+Fecha: {ahora()}
+
+Servicio: Filtración casa
+
+Nombre: {session.get('nombre')}
+Teléfono: {session.get('telefono')}
+Correo: {session.get('correo')}
+
+Localidad: {session.get('localidad')}
+
+Día agenda: {text}
+
+Precio servicio: {session.get('precio_servicio')}
+Traslado: {session.get('traslado')}
+Total: {session.get('total')}
+"""
+
+        enviar_correo(
+            "Nueva agenda casa",
+            cuerpo
         )
 
-        if session.get("urgente"):
-            respuesta = (
-                "🚨 *Aceptación prioritaria registrada*\n\n"
-                + respuesta
-            )
+        session["step"] = "cerrado"
 
-        return respuesta
+        return (
+            f"📅 Agenda registrada para el día: "
+            f"*{text}*\n\n"
+
+            "Un ejecutivo te contactará "
+            "para confirmar."
+        )
+
+    # ==========================================
+    # AGENDA VISITA TÉCNICA
+    # ==========================================
+
+    if session.get("step") == "agenda_visita_dia":
+
+        session["dia_agenda"] = text
+
+        session["step"] = "agenda_visita_bloque"
+
+        return (
+            "Perfecto 👍\n\n"
+
+            "Indícanos el bloque horario:\n\n"
+
+            "🌞 Mañana\n"
+            "🌙 Tarde"
+        )
+
+    if session.get("step") == "agenda_visita_bloque":
+
+        if "mañ" in text:
+            bloque = "Mañana"
+
+        elif "tard" in text:
+            bloque = "Tarde"
+
+        else:
+            return "Responde *mañana* o *tarde*."
+
+        session["bloque_agenda"] = bloque
+
+        cuerpo = f"""
+Nueva visita técnica registrada
+
+Fecha: {ahora()}
+
+Servicio: {session.get('service')}
+
+Nombre: {session.get('nombre')}
+Teléfono: {session.get('telefono')}
+Correo: {session.get('correo')}
+
+Detalle:
+{session.get('detalle')}
+
+Día: {session.get('dia_agenda')}
+Bloque: {bloque}
+"""
+
+        enviar_correo(
+            "Nueva visita técnica",
+            cuerpo
+        )
+
+        session["step"] = "cerrado"
+
+        return (
+            "📅 Agenda registrada\n\n"
+
+            f"Día: {session.get('dia_agenda')}\n"
+            f"Bloque: {bloque}\n\n"
+
+            "Un ejecutivo te contactará "
+            "para confirmar."
+        )
+
+    # ==========================================
+    # ACEPTACIÓN COTIZACIÓN
+    # ==========================================
+
+    if (
+        session.get("step") == "fin"
+        and session.get("service") == "filtracion"
+        and es_aceptacion(text)
+    ):
+
+        cuerpo = f"""
+Cliente aceptó cotización
+
+Fecha: {ahora()}
+
+Nombre: {session.get('nombre')}
+Teléfono: {session.get('telefono')}
+Correo: {session.get('correo')}
+
+Localidad: {session.get('localidad')}
+
+Total: {session.get('total')}
+"""
+
+        enviar_correo(
+            "Cliente aceptó cotización",
+            cuerpo
+        )
+
+        session["step"] = "agenda_casa_dia"
+
+        return (
+            "Excelente 👍\n\n"
+
+            "Tu aceptación fue registrada.\n\n"
+
+            "Indícanos el *día* "
+            "que te acomoda."
+        )
+
+    # ==========================================
+    # CERRADO
+    # ==========================================
+
+    if session.get("step") == "cerrado":
+
+        return (
+            "Tu solicitud ya fue registrada.\n\n"
+
+            "Si deseas comenzar nuevamente "
+            "escribe *inicio*."
+        )
+
+    # ==========================================
+    # MENÚ
+    # ==========================================
 
     if session["step"] == "menu":
-        servicio_detectado = detectar_servicio(text)
 
-        if servicio_detectado == "filtracion":
+        servicio = detectar_servicio(text)
+
+        if text == "1" or servicio == "filtracion":
+
             session["service"] = "filtracion"
-            session["step"] = "tipo_propiedad"
+            session["step"] = "tipo"
+
             return (
                 "Perfecto 👍\n\n"
-                "Para estimar la localización de la filtración necesitamos algunos datos de la propiedad.\n\n"
-                "Esto nos permite ajustar la complejidad del trabajo y evitar intervenciones innecesarias.\n\n"
-                "¿Es *casa* o *departamento*?"
+
+                "¿La propiedad corresponde a:\n\n"
+
+                "🏠 Casa\n"
+                "🏢 Departamento / Condominio?"
             )
 
-        if servicio_detectado == "alcantarillado":
+        if text == "2" or servicio == "alcantarillado":
+
             session["service"] = "alcantarillado"
             session["step"] = "detalle"
+
             return (
-                "Entiendo 👍 esto parece un problema de *alcantarillado u olores*.\n\n"
-                "Descríbenos brevemente el problema para registrarlo."
+                "Describe brevemente el problema "
+                "de alcantarillado u olores."
             )
 
-        if servicio_detectado == "piscina":
+        if text == "3" or servicio == "piscina":
+
             session["service"] = "piscina"
             session["step"] = "detalle"
+
             return (
-                "Perfecto 👍 te ayudaremos con tu *piscina*.\n\n"
-                "Descríbenos brevemente el problema para registrarlo."
+                "Describe brevemente "
+                "el problema de la piscina."
             )
 
-        if servicio_detectado == "seguro":
-            session["service"] = "seguro"
-            session["step"] = "detalle"
-            return (
-                "Claro 👍 realizamos *informes técnicos para seguros*.\n\n"
-                "Descríbenos brevemente lo que necesitas para registrarlo."
-            )
+        if text == "4" or servicio == "inspeccion":
 
-        if servicio_detectado == "inspeccion":
             session["service"] = "inspeccion"
             session["step"] = "detalle"
+
             return (
-                "Perfecto 👍 realizamos *inspecciones técnicas y auditorías*.\n\n"
-                "Descríbenos brevemente el objetivo de la evaluación."
+                "Describe brevemente "
+                "la inspección requerida."
             )
 
-        if text == "1":
-            session["service"] = "filtracion"
-            session["step"] = "tipo_propiedad"
-            return (
-                "Perfecto 👍\n\n"
-                "Para estimar la localización de la filtración necesitamos algunos datos de la propiedad.\n\n"
-                "Esto nos permite ajustar la complejidad del trabajo y evitar intervenciones innecesarias.\n\n"
-                "¿Es *casa* o *departamento*?"
-            )
+        if text == "5" or servicio == "seguro":
 
-        if text == "2":
-            session["service"] = "alcantarillado"
-            session["step"] = "detalle"
-            return "Perfecto. Describe brevemente el problema de alcantarillado u olores."
-
-        if text == "3":
-            session["service"] = "piscina"
-            session["step"] = "detalle"
-            return "Perfecto. Describe brevemente el problema de la piscina."
-
-        if text == "4":
-            session["service"] = "inspeccion"
-            session["step"] = "detalle"
-            return "Perfecto. Describe brevemente el objetivo de la inspección técnica."
-
-        if text == "5":
             session["service"] = "seguro"
             session["step"] = "detalle"
-            return "Perfecto. Describe brevemente lo que necesitas para el informe técnico."
+
+            return (
+                "Describe brevemente "
+                "lo que necesitas."
+            )
 
         if text == "6":
+
             session["service"] = "auditoria"
             session["step"] = "detalle"
-            return "Perfecto. Describe brevemente el objetivo de la auditoría."
+
+            return (
+                "Describe brevemente "
+                "la auditoría requerida."
+            )
 
         if text == "7":
+
             session["service"] = "otro"
             session["step"] = "detalle"
-            return "Cuéntanos brevemente qué necesitas."
+
+            return (
+                "Cuéntanos brevemente "
+                "qué necesitas."
+            )
 
         return menu()
+
+    # ==========================================
+    # FILTRACIÓN
+    # ==========================================
 
     if session.get("service") == "filtracion":
 
-        if session["step"] == "tipo_propiedad":
-            if "casa" in text:
-                session["tipo"] = "casa"
-                session["step"] = "comuna"
-                return "¿En qué *comuna* se encuentra? Responde: *Iquique* o *Alto Hospicio*."
+        if session["step"] == "tipo":
 
-            if "depart" in text or "depto" in text or "condominio" in text or "industria" in text:
-                session["tipo"] = "no_casa"
-                session["detalle"] = "Filtración en departamento, condominio o industria"
-                session["step"] = "contacto_nombre"
+            if "casa" in text:
+
+                session["tipo"] = "casa"
+                session["step"] = "localidad"
+
                 return (
-                    "🏢 *Evaluación técnica en terreno*\n\n"
-                    "En casos de *departamentos, condominios e industrias*, realizamos una *visita técnica sin costo*, ya que las alternativas de detección y localización dependen del sistema interno del edificio, cámaras de alcantarillado, montantes, shafts, bajantes y condiciones estructurales.\n\n"
-                    "Coordinemos una *visita técnica gratuita* para evaluar las alternativas de localización y reparación.\n\n"
-                    "Luego de la inspección generamos la *cotización oficial* con alcances del servicio, condiciones de pago y garantías.\n\n"
-                    "Indícame tu *nombre*."
+                    "Indica la localidad:\n\n"
+
+                    "📍 Iquique\n"
+                    "📍 Alto Hospicio\n"
+                    "📍 Pozo Almonte\n"
+                    "📍 Pica\n"
+                    "📍 Arica"
                 )
 
-            return "Por favor responde si es *casa* o *departamento*."
+            if (
+                "depart" in text
+                or "depto" in text
+                or "condominio" in text
+                or "industria" in text
+            ):
 
-        if session["step"] == "comuna":
-            session["comuna"] = text
+                session["tipo"] = "visita"
+                session["step"] = "contacto_nombre"
+
+                return (
+                    "🏢 Para departamentos, "
+                    "condominios e industrias "
+                    "realizamos visita técnica "
+                    "sin costo.\n\n"
+
+                    "Indícanos tu nombre."
+                )
+
+            return "Responde casa o departamento."
+
+        if session["step"] == "localidad":
+
+            session["localidad"] = normalizar_localidad(text)
+
             session["step"] = "m2"
-            return "¿Cuántos *m² aproximados* tiene la propiedad? Responde solo con el número."
 
-        if session["step"] == "m2":
-            try:
-                session["m2"] = int("".join(filter(str.isdigit, text)))
-            except Exception:
-                return "Indica solo el número de *m²*."
-            session["step"] = "banos"
-            return "¿Cuántos *baños* tiene la propiedad? Responde solo con el número."
-
-        if session["step"] == "banos":
-            try:
-                session["banos"] = int("".join(filter(str.isdigit, text)))
-            except Exception:
-                return "Indica solo el número de *baños*."
-            session["step"] = "ampliacion"
-            return "¿La propiedad tiene *ampliaciones*? Responde *sí* o *no*."
-
-        if session["step"] == "ampliacion":
-            if text in ["sí", "si", "s"]:
-                session["ampliacion"] = True
-            elif text in ["no", "n"]:
-                session["ampliacion"] = False
-            else:
-                return "Por favor responde *sí* o *no*."
-            session["step"] = "seguro"
-            return "¿Requiere *informe para seguro*? Responde *sí* o *no*."
-
-        if session["step"] == "seguro":
-            if text in ["sí", "si", "s"]:
-                session["seguro"] = True
-            elif text in ["no", "n"]:
-                session["seguro"] = False
-            else:
-                return "Por favor responde *sí* o *no*."
-            session["step"] = "nombre"
-            return "Perfecto. Indícame tu *nombre*."
-
-        if session["step"] == "nombre":
-            session["nombre"] = text.title()
-            session["step"] = "telefono"
-            return "Indícame tu *teléfono de contacto*."
-
-        if session["step"] == "telefono":
-            session["telefono"] = text
-            session["step"] = "correo"
-            return "Indícame tu *correo electrónico*."
-
-        if session["step"] == "correo":
-            session["correo"] = text
-            session["step"] = "fin"
-            return calcular_cotizacion(session)
-
-    if session["step"] == "detalle":
-        session["detalle"] = text
-        session["step"] = "contacto_nombre"
-        return "Perfecto. Indícame tu *nombre*."
-
-    if session["step"] == "contacto_nombre":
-        session["nombre"] = text.title()
-        session["step"] = "contacto_telefono"
-        return "Indícame tu *teléfono*."
-
-    if session["step"] == "contacto_telefono":
-        session["telefono"] = text
-        session["step"] = "contacto_correo"
-        return "Indícame tu *correo electrónico* o escribe *no* si no deseas informarlo."
-
-    if session["step"] == "contacto_correo":
-        session["correo"] = "" if text in ["no", "n"] else text
-        session["step"] = "fin"
-
-        if not (session.get("service") == "filtracion" and session.get("tipo") == "casa"):
-            enviar_correo_lead_general(session)
-
-        respuesta = (
-            "Gracias 👍\n\n"
-            f"Nombre: {session.get('nombre')}\n"
-            f"Teléfono: {session.get('telefono')}\n\n"
-            "Tu solicitud fue registrada correctamente. Un ejecutivo te contactará para coordinar la atención."
-        )
-
-        if session.get("urgente"):
-            respuesta = (
-                "🚨 *Caso prioritario registrado*\n\n"
-                + respuesta
+            return (
+                "¿Cuántos m² aproximados "
+                "tiene la propiedad?"
             )
 
-        return respuesta
+        if session["step"] == "m2":
 
-    if session["step"] == "fin":
-        return "Tu solicitud ya fue registrada. Si deseas comenzar de nuevo, escribe *inicio*."
+            try:
+
+                session["m2"] = int(
+                    "".join(filter(str.isdigit, text))
+                )
+
+            except:
+
+                return "Indica solo el número."
+
+            session["step"] = "banos"
+
+            return "¿Cuántos baños tiene?"
+
+        if session["step"] == "banos":
+
+            try:
+
+                session["banos"] = int(
+                    "".join(filter(str.isdigit, text))
+                )
+
+            except:
+
+                return "Indica solo el número."
+
+            session["step"] = "ampliacion"
+
+            return (
+                "¿La propiedad tiene ampliaciones?\n\n"
+
+                "Responde sí o no."
+            )
+
+        if session["step"] == "ampliacion":
+
+            session["ampliacion"] = (
+                text in ["si", "sí", "s"]
+            )
+
+            session["step"] = "seguro"
+
+            return (
+                "¿Requiere informe para seguro?\n\n"
+
+                "Responde sí o no."
+            )
+
+        if session["step"] == "seguro":
+
+            session["seguro"] = (
+                text in ["si", "sí", "s"]
+            )
+
+            session["step"] = "nombre"
+
+            return "Indícanos tu nombre."
+
+        if session["step"] == "nombre":
+
+            session["nombre"] = text.title()
+
+            session["step"] = "telefono"
+
+            return "Indícanos tu teléfono."
+
+        if session["step"] == "telefono":
+
+            session["telefono"] = text
+
+            session["step"] = "correo"
+
+            return "Indícanos tu correo electrónico."
+
+        if session["step"] == "correo":
+
+            session["correo"] = text
+
+            return calcular_cotizacion(session)
+
+    # ==========================================
+    # OTROS SERVICIOS
+    # ==========================================
+
+    if session["step"] == "detalle":
+
+        session["detalle"] = text
+
+        session["step"] = "contacto_nombre"
+
+        return "Indícanos tu nombre."
+
+    if session["step"] == "contacto_nombre":
+
+        session["nombre"] = text.title()
+
+        session["step"] = "contacto_telefono"
+
+        return "Indícanos tu teléfono."
+
+    if session["step"] == "contacto_telefono":
+
+        session["telefono"] = text
+
+        session["step"] = "contacto_correo"
+
+        return "Indícanos tu correo electrónico."
+
+    if session["step"] == "contacto_correo":
+
+        session["correo"] = text
+
+        cuerpo = f"""
+Nuevo requerimiento registrado
+
+Fecha: {ahora()}
+
+Servicio: {session.get('service')}
+
+Nombre: {session.get('nombre')}
+Teléfono: {session.get('telefono')}
+Correo: {session.get('correo')}
+
+Detalle:
+{session.get('detalle')}
+"""
+
+        enviar_correo(
+            "Nuevo requerimiento",
+            cuerpo
+        )
+
+        session["step"] = "agenda_visita_dia"
+
+        return (
+            "Perfecto 👍\n\n"
+
+            "Indícanos el *día* "
+            "que te acomoda para coordinar "
+            "la visita."
+        )
 
     return menu()
 
 
-# =========================
+# =====================================================
 # WEBHOOK
-# =========================
+# =====================================================
 
 @app.route("/webhook", methods=["GET"])
 def verify():
+
     if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+
         return request.args.get("hub.challenge"), 200
+
     return "Error", 403
 
 
 @app.route("/webhook", methods=["POST"])
 def receive_message():
+
     data = request.get_json(silent=True)
+
     print("Mensaje recibido:", data)
 
     try:
+
         value = data["entry"][0]["changes"][0]["value"]
 
         if "messages" not in value:
             return "ok", 200
 
-        msg = value["messages"][0]
-        user = msg["from"]
-        text = msg.get("text", {}).get("body", "").strip().lower()
+        message = value["messages"][0]
 
-        response = handle_message(user, text)
+        from_number = message["from"]
+
+        incoming = (
+            message.get("text", {})
+            .get("body", "")
+            .lower()
+            .strip()
+        )
+
+        response = handle_message(
+            from_number,
+            incoming
+        )
+
         if response:
-            send_message(user, response)
+            send_message(from_number, response)
 
     except Exception as e:
-        print("Error en webhook:", e)
+
+        print("Error:", e)
 
     return "ok", 200
 
 
+@app.route("/")
+def home():
+
+    return "Bot activo", 200
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+
+    app.run(
+        host="0.0.0.0",
+        port=5000
+    )
