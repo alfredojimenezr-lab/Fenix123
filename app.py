@@ -42,10 +42,6 @@ LOCALIDADES = {
         "extra_fijo": 0
     },
 
-    "arica": {
-        "km": 600,
-        "extra_fijo": 0
-    }
 }
 
 
@@ -69,9 +65,6 @@ def normalizar_localidad(texto):
 
     if "pica" in texto:
         return "pica"
-
-    if "arica" in texto:
-        return "arica"
 
     if "iquique" in texto:
         return "iquique"
@@ -737,7 +730,6 @@ Total: {session.get('total')}
                     "📍 Alto Hospicio\n"
                     "📍 Pozo Almonte\n"
                     "📍 Pica\n"
-                    "📍 Arica"
                 )
 
             if (
