@@ -29,7 +29,7 @@ LOCALIDADES = {
 
     "alto hospicio": {
         "km": 0,
-        "extra_fijo": 40000
+        "extra_fijo": 20000
     },
 
     "pozo almonte": {
