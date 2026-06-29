@@ -17,7 +17,7 @@ sessions = {}
 # CONFIGURACIÓN GENERAL
 # =====================================================
 
-BASE_PRICE = 200000
+BASE_PRICE = 180000
 PRECIO_DIESEL = 1300
 VALOR_INFORME = 60000
 
