@@ -395,12 +395,35 @@ def handle_message(user, text):
         sessions[user] = {"step": "menu"}
         return menu()
 
+    # SI PIDIÓ CONTACTO HUMANO PERO FALTABA TELÉFONO
+    if session.get("step") == "contacto_humano_pide_telefono":
+        session["telefono"] = text
+        session["step"] = "contacto_humano"
+
+        enviar_correo_contacto_humano(session)
+
+        return (
+            "Perfecto. Hemos registrado tu solicitud para ser atendido por uno de nuestros especialistas.\n\n"
+            "Si lo deseas, puedes enviarnos ahora fotografías o videos del problema por este mismo WhatsApp. "
+            "Esto nos permitirá revisar tu caso antes de comunicarnos contigo.\n\n"
+            "Nos pondremos en contacto contigo a la brevedad."
+        )
+
     # SI YA PIDIÓ CONTACTO HUMANO, EL BOT NO INTERRUMPE
     if session.get("step") == "contacto_humano":
         return None
 
     # PALABRA CLAVE HUMANO EN CUALQUIER MOMENTO
     if solicita_humano(text):
+
+        if not session.get("telefono"):
+            session["step"] = "contacto_humano_pide_telefono"
+
+            return (
+                "Perfecto. Para que un especialista pueda contactarte, "
+                "indícanos por favor tu número de teléfono."
+            )
+
         session["step"] = "contacto_humano"
 
         enviar_correo_contacto_humano(session)
