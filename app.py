@@ -263,13 +263,13 @@ def calcular_cotizacion(s):
     seguro = s.get("seguro", False)
 
     if m2 <= 100:
-        factor = 1.0
+        factor = 0.8
     elif m2 <= 150:
-        factor = 1.5
+        factor = 1.2
     elif m2 <= 200:
-        factor = 2.0
+        factor = 1.6
     elif m2 <= 250:
-        factor = 2.5
+        factor = 2.3
     elif m2 <= 300:
         factor = 3.0
     elif m2 <= 350:
