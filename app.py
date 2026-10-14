@@ -423,7 +423,7 @@ def handle_message(user, text):
             return (
                 "Gracias. Para que el especialista pueda revisar tu caso, "
                 "indícanos también la dirección del inmueble: calle, número y, "
-                "si corresponde, departamento, torre o casa y comuna."
+                "si corresponde, departamento, torre o casa."
             )
         return registrar_contacto_humano(session)
 
@@ -444,7 +444,7 @@ def handle_message(user, text):
             return (
                 "Perfecto. Para que el especialista pueda revisar tu caso, "
                 "indícanos la dirección del inmueble: calle, número y, si "
-                "corresponde, departamento, torre o casa y comuna."
+                "corresponde, departamento, torre o casa."
             )
         return registrar_contacto_humano(session)
 
@@ -703,7 +703,7 @@ Bloque: {bloque}
         session["step"] = "contacto_direccion"
         return (
             "Para completar tu solicitud, indícanos la *dirección del inmueble*: "
-            "calle y número y, si corresponde, departamento, torre o casa y comuna."
+            "calle y número y, si corresponde, departamento, torre o casa."
         )
 
     return menu()
