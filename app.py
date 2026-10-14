@@ -1,113 +1,96 @@
-if session["step"] == "m2":
-            try:
-                session["m2"] = int("".join(filter(str.isdigit, text)))
-            except (TypeError, ValueError):
-                return "Indica solo el número."
-            session["step"] = "banos"
-            return "¿Cuántos baños tiene?"
+from flask import Flask, request
 
-        if session["step"] == "banos":
-            try:
-                session["banos"] = int("".join(filter(str.isdigit, text)))
-            except (TypeError, ValueError):
-                return "Indica solo el número."
-            session["step"] = "ampliacion"
-            return "¿La propiedad tiene ampliaciones?\n\nResponde sí o no."
+import os
+import smtplib
+from datetime import datetime
+from email.mime.text import MIMEText
 
-        if session["step"] == "ampliacion":
-            session["ampliacion"] = text in ["si", "sí", "s"]
-            session["step"] = "seguro"
-            return "¿Requiere informe para seguro?\n\nResponde sí o no."
+import requests
 
-        if session["step"] == "seguro":
-            session["seguro"] = text in ["si", "sí", "s"]
-            session["step"] = "nombre"
-            return "Indícanos tu nombre."
 
-        if session["step"] == "nombre":
-            session["nombre"] = raw_text.title()
-            session["step"] = "telefono"
-            return "Indícanos tu teléfono."
+app = Flask(__name__)
 
-        if session["step"] == "telefono":
-            session["telefono"] = raw_text
-            session["step"] = "correo"
-            return "Indícanos tu correo electrónico."
+VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "fenix123")
+WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN")
+PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID")
 
-        if session["step"] == "correo":
-            session["correo"] = raw_text
-            session["step"] = "direccion_casa"
-            return (
-                "Para completar tu solicitud, indícanos la *dirección del inmueble*: "
-                "calle y número y, si corresponde, departamento, torre o casa."
-            )
-
-    # OTROS SERVICIOS
-    if session.get("step") == "detalle":
-        session["detalle"] = raw_text
-        session["step"] = "contacto_nombre"
-        return "Indícanos tu nombre."
-
-    if session.get("step") == "contacto_nombre":
-        session["nombre"] = raw_text.title()
-        session["step"] = "contacto_telefono"
-        return "Indícanos tu teléfono."
-
-    if session.get("step") == "contacto_telefono":
-        session["telefono"] = raw_text
-        session["step"] = "contacto_correo"
-        return "Indícanos tu correo electrónico."
-
-    if session.get("step") == "contacto_correo":
-        session["correo"] = raw_text
-        session["step"] = "contacto_direccion"
-        return (
-            "Para completar tu solicitud, indícanos la *dirección del inmueble*: "
-            "calle y número y, si corresponde, departamento, torre o casa y comuna."
-        )
-
-    return menu()
-
+sessions = {}
 
 # =====================================================
-# WEBHOOK
+# CONFIGURACIÓN GENERAL
+# =====================================================
+
+BASE_PRICE = 180000
+PRECIO_DIESEL = 1300
+VALOR_INFORME = 60000
+
+LOCALIDADES = {
+    "iquique": {"km": 0, "extra_fijo": 0},
+    "alto hospicio": {"km": 0, "extra_fijo": 20000},
+    "pozo almonte": {"km": 110, "extra_fijo": 0},
+    "pica": {"km": 240, "extra_fijo": 0},
+}
+
+# =====================================================
+# UTILIDADES
 # =====================================================
 
 
-@app.route("/webhook", methods=["GET"])
-def verify():
-    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
-        return request.args.get("hub.challenge"), 200
-    return "Error", 403
+def ahora():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-@app.route("/webhook", methods=["POST"])
-def receive_message():
-    data = request.get_json(silent=True)
-    print("Mensaje recibido:", data)
+def normalizar_localidad(texto):
+    texto = texto.lower().strip()
 
-    try:
-        value = data["entry"][0]["changes"][0]["value"]
-        if "messages" not in value:
-            return "ok", 200
+    if "alto" in texto or "hospicio" in texto:
+        return "alto hospicio"
+    if "pozo" in texto or "almonte" in texto:
+        return "pozo almonte"
+    if "pica" in texto:
+        return "pica"
+    if "iquique" in texto:
+        return "iquique"
 
-        message = value["messages"][0]
-        from_number = message["from"]
-        incoming = message.get("text", {}).get("body", "").strip()
-        response = handle_message(from_number, incoming)
-        if response:
-            send_message(from_number, response)
-
-    except Exception as e:
-        print("Error:", e)
-
-    return "ok", 200
+    return "iquique"
 
 
-@app.route("/")
-def home():
-    return "Bot activo", 200
+def es_aceptacion(texto):
+    texto = texto.lower().strip()
+    afirmativos = [
+        "si", "sí", "ok", "acepto", "de acuerdo",
+        "adelante", "avancemos", "confirmo", "agendar", "quiero"
+    ]
+    return any(x in texto for x in afirmativos)
 
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+def solicita_humano(texto):
+    texto = texto.lower().strip()
+    palabras = [
+        "humano", "asesor", "especialista", "persona", "ejecutivo",
+        "llamar", "llamen", "contactar", "quiero hablar"
+    ]
+    return any(p in texto for p in palabras)
+
+
+def detectar_servicio(texto):
+    texto = texto.lower()
+
+    if any(x in texto for x in [
+        "filtracion", "filtración", "fuga", "humedad", "goteo", "pierde agua"
+    ]):
+        return "filtracion"
+
+    if any(x in texto for x in [
+        "alcantarillado", "olor", "hedor", "desague", "desagüe"
+    ]):
+        return "alcantarillado"
+
+    if any(x in texto for x in ["piscina", "agua verde", "agua turbia"]):
+        return "piscina"
+
+    if any(x in texto for x in ["seguro", "informe", "aseguradora"]):
+        return "seguro"
+
+    if any(x in texto for x in [
+        "inspeccion", "inspección", "auditoria", "auditoría"
